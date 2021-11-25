@@ -1,0 +1,38 @@
+.dec
+    sum
+    x
+
+    //Illegal character: ;
+    y;
+    //Illegal character: 1
+    12dud
+
+.code
+    loop:
+    //ROM label loop has been defined more than once
+    loop:
+    //Illegal character: 1
+    12loop:
+    //Illegal character: 3
+    3d
+    JMP 2
+    JMP loop
+    //RAM label sum has been used as a jump destination
+    JMP sum
+    //Incorrect number of operands for JMP
+    JMP
+    //Illegal character: 3
+    31
+    JMP hi
+    //ROM label x has been defined as a RAM label
+    x:
+    hi:
+    //Illegal opcode: hello
+    hello
+    //Illegal operand: #45
+    JMP #3
+    //Illegal character: !
+    JMP !45
+    //RAM label z has not been declared
+    ADDD z
+    ADDD x

@@ -16,17 +16,18 @@ public class Assembler
     private FileWriter writer;
     private boolean decArea;
 
-    private ArrayList<String> variables; //RAM labels
+    private TreeSet<String> variables; //RAM labels
     private ArrayList<String> labels; //ROM labels
 
-    private Set<LabelNotFoundException> variablesNotFound; //set of all not found variable labels exceptions
+    private Set<String> variablesNotFound; //set of all not found variable labels exceptions
     private Set<LabelNotFoundException> labelsNotFound; //set of all not found instruction labels exceptions
+
+    private ArrayList<String> goodInstructions;
 
     public static void main(String[] args)
     {
-        //String file = args[0];
-        String file = "example1.shk";
-        ArrayList<String> instructions = new ArrayList<>();
+        String file = args[0];
+        //ArrayList<String> instructions = new ArrayList<>();
         //Test if a file has been given and if it has the appropriate suffix.
         if(file!=null && !file.isEmpty() && file.endsWith(".shk"))
         {
@@ -38,11 +39,16 @@ public class Assembler
                 String line;
                 while((line=reader.readLine()) != null)
                 {
-                    instructions.add(line);
-                    assembler.assemble(instructions.get(instructions.size()-1), true);
+                    //instructions.add(line);
+                    try {
+                        assembler.assemble(line, true);
+                       //assembler.assemble(instructions.get(instructions.size() - 1), true);
+                    }catch(Exception ex) {
+                        System.err.println(ex.getMessage());
+                    }
                 }
 
-                for(String instruction: instructions)
+                for(String instruction: assembler.goodInstructions)
                     try {
                         assembler.assemble(instruction, false);
                     }catch(Exception ex){
@@ -64,7 +70,6 @@ public class Assembler
             System.err.println("Please give as parameter the name of a file with the suffix '.shk'");
     }
 
-
     /**
      * Constructor of the assembler. It generates the output file.
      *
@@ -72,13 +77,15 @@ public class Assembler
      */
     public Assembler(String fileName)
     {
+        goodInstructions = new ArrayList<>();
+
         try{
             writer = new FileWriter(fileName+".asm");
         }catch(IOException ex)
         {
             System.err.println("There was an error creating the output file.");
         }
-        variables = new ArrayList<>();
+        variables = new TreeSet<>();
         labels = new ArrayList<>();
 
         variablesNotFound = new LinkedHashSet<>(); //saves the exceptions in order
@@ -100,17 +107,10 @@ public class Assembler
     }
 
     /**
-     * Print the label errors (RAM labels not declared, ROM labels not defined)
+     * Print the ROM label errors
      */
     public void printLabelErrors()
     {
-        //Print RAM label errors
-        for(LabelNotFoundException ex: variablesNotFound)
-        {
-            System.err.println(ex.getMessage());
-        }
-
-        //Print ROM label errors
         for(LabelNotFoundException ex: labelsNotFound)
             System.err.println(ex.getMessage());
     }
@@ -155,6 +155,7 @@ public class Assembler
     /**
      * Takes the given Shack line and converts it into Hack instructions
      * @param instruction The line of Shack code to be converted
+     * @param isDeclaring Whether this is the declaration faze (no conversions)
      */
     public void assemble(String instruction, boolean isDeclaring)
     {
@@ -168,28 +169,31 @@ public class Assembler
         //Check if the line is equal to .dec or .code and set the boolean variable 'declaring' accordingly.
         if(instruction.equals(".dec"))
         {
-            decArea =true;
+            if(isDeclaring)
+                goodInstructions.add(instruction);
+            decArea = true;
             return;
         }
         if(instruction.equals(".code"))
         {
-            decArea =false;
+            if(isDeclaring)
+                goodInstructions.add(instruction);
+            decArea = false;
             return;
         }
 
         //Do declarations
         if(decArea)
         {
-            //If I am in the declaring phase, I put the label inside the variable labels list
             if(isDeclaring) {
-                //Check if the label is valid
-                if(!isValidLabel(instruction))
-                    throw new InvalidLabel(false, instruction);
-
+                checkInvalidChar(instruction);
+                goodInstructions.add(instruction);
                 variables.add(instruction);
             }
-            else //Otherwise, I convert it (its validity has already been checked previously)
-                write("@"+instruction);
+            else
+            {
+                write("@" + instruction);
+            }
         }
         else //Do instructions
         {
@@ -202,48 +206,78 @@ public class Assembler
                 //If I am in the declaring phase, I put the label inside the instruction labels list
                 if(isDeclaring) {
                     //Check if the label is valid and if it already exists
-                    if(!isValidLabel(instruction) || labels.contains(instruction))
-                        throw new InvalidLabel(true, instruction);
+                    checkInvalidChar(instruction);
+                    if(variables.contains(instruction))
+                        throw new LabelAlreadyExistsException(true, instruction);
+                    if(labels.contains(instruction))
+                        throw new LabelAlreadyExistsException(false, instruction);
+
+                    goodInstructions.add(instruction+":");
                     labels.add(instruction);
-                }else //Otherwise, I convert it
-                    write("@"+instruction);
+                }else //Otherwise, convert it
+                {
+                    write("@" + instruction);
+                }
             }
             else //Do actual instruction
             {
                 //If I am in the declaring phase, I don't yet convert the other instructions
                 if(!isDeclaring)
                     convertInstruction(instruction);
+                else
+                    goodInstructions.add(instruction);
             }
         }
     }
 
     /**
-     * Check if the label is valid.
-     * @param label The label
+     * Find invalid character in the given code.
+     * @param code The code
      *
-     * @return true if the label is valid, false if it is invalid
+     * @return the invalid char, or a space character if none were found
      */
-    private boolean isValidLabel(String label)
+    private char findInvalidChar(String code)
     {
         String pattern = "^[\\w]+$";
         String alphabet = "^[a-zA-Z]+$";
         //Check if the first character is a letter
-        if(!label.substring(0, 1).matches(alphabet))
-            return false;
-        if(variables.contains(label))
-            return false;
+        if(!(code.charAt(0)+"").matches(alphabet))
+        {
+            return code.charAt(0);
+        }
+        //Check if the code is alphanumeric (including underscores)
+        for(int i=0; i<code.length(); i++)
+            if(!(code.charAt(i)+"").matches(pattern))
+            {
+                return code.charAt(i);
+            }
 
-        //Check if the label is alphanumeric (including underscores)
-        return label.matches(pattern);
+
+        return ' ';
+    }
+
+    /**
+     * Check if an invalid character exists in the given code. If so, an IllegalCharacterException is thrown.
+     * @param code The code
+     */
+    private void checkInvalidChar(String code)
+    {
+        char c = findInvalidChar(code);
+        if(c!=' ')
+            throw new IllegalCharacterException(c);
     }
 
     /**
      * Convert the given line to an instruction (if possible). If it is not possible, print out an error.
      * @param line The instruction line
      */
-    private void convertInstruction(String line) throws IllegalInstructionException, LabelNotFoundException
+    private void convertInstruction(String line)
     {
         String[] parts = line.split(" ");
+        //Search the instruction for invalid characters
+        char c = findInvalidChar(parts[0]);
+        if(c!=' ')
+            throw new IllegalCharacterException(c);
         //Select the instruction to be done
         switch (parts[0]) {
             //D-register instructions
@@ -260,7 +294,7 @@ public class Assembler
 
             //Load instruction
             case "LOAD" -> writeLoad(line);
-            default -> System.err.println("The instruction " + parts[0] + " does not exist.");
+            default -> throw new IllegalInstructionException(line);
         }
     }
 
@@ -268,17 +302,15 @@ public class Assembler
      * Convert load instructions.
      * @param line The instruction
      *
-     * @throws IllegalInstructionException throws illegal instruction exception
-     * @throws LabelNotFoundException throws label not found exception
      */
-    private void writeLoad(String line) throws IllegalInstructionException, LabelNotFoundException
+    private void writeLoad(String line)
     {
         String[] parts = line.split(" ");
         //Check instruction validity
         if(parts.length!=3)
-            throw new IllegalInstructionException(line);
+            throw new IncorrectNumberOperandsException(parts[0]);
         if(!(parts[1].equals("A") || parts[1].equals("D")))
-            throw new IllegalInstructionException(line);
+            throw new IllegalOperandException(parts[1]);
 
         //Do different things depending on whether the second part is A or D
         if(parts[1].equals("A"))
@@ -289,14 +321,8 @@ public class Assembler
             {
                 //Check the validity of the label (if one is provided)
                 String dest = parts[2];
-                if(dest.startsWith("#"))
-                    dest=dest.substring(1);
-                try{
-                    dest = getDestination(dest, false);
-                }catch(LabelNotFoundException ex){
-                    variablesNotFound.add(ex);
-                    return;
-                }
+                dest = getDestination(dest, false);
+
                 write("@"+dest);
             }
         }
@@ -308,14 +334,7 @@ public class Assembler
             {
                 //Check the validity of the label (if one is provided)
                 String dest = parts[2];
-                if(dest.startsWith("#"))
-                    dest=dest.substring(1);
-                try{
-                    dest = getDestination(dest, false);
-                }catch(LabelNotFoundException ex){
-                    variablesNotFound.add(ex);
-                    return;
-                }
+                dest = getDestination(dest, false);
 
                 //Save A
                 write("D=A");
@@ -338,27 +357,19 @@ public class Assembler
     /**
      * Convert store instructions.
      * @param line The instruction
-     *
-     * @throws IllegalInstructionException throws illegal instruction exception
-     * @throws LabelNotFoundException throws label not found exception
      */
-    private void writeStore(String line) throws IllegalInstructionException, LabelNotFoundException
+    private void writeStore(String line)
     {
         String[] parts = line.split(" ");
         //Check instruction validity
         if(parts.length!=3)
-            throw new IllegalInstructionException(line);
+            throw new IncorrectNumberOperandsException(parts[0]);
         if(!(parts[1].equals("A") || parts[1].equals("D")))
             throw new IllegalInstructionException(line);
 
         //Check the validity of the label (if one is provided)
         String dest=parts[2];
-        try{
-            dest = getDestination(dest, false);
-        }catch(LabelNotFoundException ex){
-            variablesNotFound.add(ex);
-            return;
-        }
+        dest = getDestination(dest, false);
 
         //Convert the instruction
         if(parts[1].equals("A"))
@@ -370,34 +381,22 @@ public class Assembler
     /**
      * Convert d-register instructions (ADDD, ANDD etc.)
      * @param line The instruction
-     *
-     * @throws IllegalInstructionException throws illegal instruction exception
-     * @throws LabelNotFoundException throws label not found exception
+
      */
-    private void writeDRegister(String line) throws IllegalInstructionException, LabelNotFoundException
+    private void writeDRegister(String line)
     {
         String[] parts = line.split(" ");
         //Check instruction validity
         if(parts.length!=2)
-            throw new IllegalInstructionException(line);
-        //Check if the instruction has a sign associated with it
-        if(dRegisterInstructionMapping.get(parts[0])==null)
-            throw new IllegalInstructionException(line);
+            throw new IncorrectNumberOperandsException(parts[0]);
 
         //Check the validity of the label (if one is provided)
         String dest = parts[1];
-        if(dest.startsWith("#"))
-            dest=dest.substring(1);
-        try{
-            dest = getDestination(dest, false);
-        }catch(LabelNotFoundException ex){
-            variablesNotFound.add(ex);
-            return;
-        }
-
-        write("@"+dest);
+        dest = getDestination(dest, false);
 
         //Convert the instruction
+        write("@"+dest);
+
         if(parts[1].startsWith("#"))
             write("D=D"+dRegisterInstructionMapping.get(parts[0])+"A");
         else
@@ -407,19 +406,13 @@ public class Assembler
     /**
      * Converts a no-operand instruction.
      * @param line The instruction
-     *
-     * @throws IllegalInstructionException throws illegal instruction exception
      */
-    private void writeNoOperand(String line) throws IllegalInstructionException
+    private void writeNoOperand(String line)
     {
         String[] parts = line.split(" ");
         //Check instruction validity
         if(parts.length!=1)
-            throw new IllegalInstructionException(line);
-
-        //Check if the instruction has a conversion String associated with it
-        if(noOperandInstructionMapping.get(parts[0])==null)
-            throw new IllegalInstructionException(line);
+            throw new IncorrectNumberOperandsException(parts[0]);
 
         //Convert the instruction
         write(noOperandInstructionMapping.get(parts[0]));
@@ -429,15 +422,13 @@ public class Assembler
      * Convert a jump instruction.
      * @param line The instruction
      *
-     * @throws IllegalInstructionException throws illegal instruction exception
-     * @throws LabelNotFoundException throws label not found exception
      */
-    private void writeJump(String line) throws IllegalInstructionException, LabelNotFoundException
+    private void writeJump(String line)
     {
         String[] parts = line.split(" ");
         //Check instruction validity
         if(parts.length!=2)
-            throw new IllegalInstructionException(line);
+            throw new IncorrectNumberOperandsException(parts[0]);
 
         //Check the validity of the label (if one is provided)
         String destination;
@@ -461,29 +452,32 @@ public class Assembler
      * @param dest The destination
      * @param isJump true if the destination is a jump destination, false otherwise
      *
-     * @throws LabelNotFoundException throws label not found exception
-     * @throws InvalidJumpTargetException throws invalid jump target exception
      */
-    private String getDestination(String dest, boolean isJump) throws LabelNotFoundException, InvalidJumpTargetException
+    private String getDestination(String dest, boolean isJump)
     {
+        if(dest.startsWith("#"))
+            dest=dest.substring(1);
         try{
             //Check if it is a label or a number
             int destination = Integer.parseInt(dest);
             //Check if the destination is a valid number
             if(destination<0 || destination>32767)
-                throw new InvalidJumpTargetException(dest, false);
+                throw new IllegalOperandException(dest);
         }catch(Exception ex)
         {
+            checkInvalidChar(dest);
             if(isJump)
             {
                 if(!labels.contains(dest))
                     if(variables.contains(dest))
-                        throw new InvalidJumpTargetException(dest, true); //If a variable was used as a jump destination, throw an InvalidJumpTargetException
+                        throw new InvalidJumpTargetException(dest); //If a variable was used as a jump destination, throw an InvalidJumpTargetException
                     else
                         throw new LabelNotFoundException(true, dest); //If the label has not been found, throw a LabelNotFoundException
             }
-            else if(!variables.contains(dest))
+            else if(!variables.contains(dest) && !variablesNotFound.contains(dest)) {
+                variablesNotFound.add(dest);
                 throw new LabelNotFoundException(false, dest);
+            }
         }
 
         return dest;
@@ -491,18 +485,31 @@ public class Assembler
 
     //region EXCEPTIONS
 
+
     /**
      * Exception thrown when a character is invalid.
      */
-    private static class InvalidCharacter extends RuntimeException
+    private static class IllegalCharacterException extends RuntimeException
     {
         /**
-         * Constructor for the InvalidCharacter based on the supplied character.
+         * Constructor for the IllegalCharacterException based on the supplied character.
          * @param character The character
          */
-        private InvalidCharacter(char character)
+        private IllegalCharacterException(char character)
         {
-            super("The character "+character+" is invalid.");
+            super("Illegal character: "+character);
+        }
+    }
+
+    private static class IncorrectNumberOperandsException extends RuntimeException
+    {
+        /**
+         * Constructor for the IncorrectNumberOperandsException based on the supplied instruction.
+         * @param instruction The instruction
+         */
+        private IncorrectNumberOperandsException(String instruction)
+        {
+            super("Incorrect number of operands for "+instruction);
         }
     }
 
@@ -517,7 +524,7 @@ public class Assembler
          */
         private IllegalInstructionException(String instruction)
         {
-            super("The instruction "+instruction+" is illegal.");
+            super("Illegal opcode: "+instruction);
         }
     }
 
@@ -532,7 +539,23 @@ public class Assembler
          */
         private IllegalOperandException(String operand)
         {
-            super("The operand "+operand+" is illegal.");
+            super("Illegal operand: "+operand);
+        }
+    }
+
+    /**
+     * Exception thrown when a ROM label already exists.
+     */
+    private static class LabelAlreadyExistsException extends RuntimeException
+    {
+        /**
+         * Constructor for the LabelAlreadyExistsException
+         * @param isRAM Whether the label has already been defined as a RAM label or not
+         * @param label The label
+         */
+        private LabelAlreadyExistsException(boolean isRAM, String label)
+        {
+            super(isRAM?"ROM label "+label+" has been defined as a RAM label.":"ROM label "+label+" has been defined more than once.");
         }
     }
 
@@ -550,7 +573,7 @@ public class Assembler
          */
         private LabelNotFoundException(boolean isInstruction, String label)
         {
-            super(isInstruction?"Instruction label "+label+" has not been defined.":"RAM label "+label+" has not been declared.");
+            super(isInstruction?"ROM label "+label+" has not been defined.":"RAM label "+label+" has not been declared.");
             this.label = label;
         }
 
@@ -583,24 +606,9 @@ public class Assembler
          * Constructor for the InvalidJumpTargetException
          * @param label The label.
          */
-        private InvalidJumpTargetException(String label, boolean isRAMLabel)
+        private InvalidJumpTargetException(String label)
         {
-            super(isRAMLabel?"RAM label "+label+" has been used as a jump destination.":"The number "+label+" is not a valid jump target.");
-        }
-    }
-
-    /**
-     * Exception thrown when a label is invalid.
-     */
-    private static class InvalidLabel extends RuntimeException
-    {
-        /**
-         * Constructor for the LabelNotFoundException
-         * @param label The label that was not found.
-         */
-        private InvalidLabel(boolean isInstruction, String label)
-        {
-            super(isInstruction?"Instruction label "+label+" is invalid.":"RAM label "+label+" is invalid.");
+            super("RAM label "+label+" has been used as a jump destination.");
         }
     }
 

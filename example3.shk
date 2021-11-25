@@ -1,0 +1,8 @@
+.dec
+	sum
+.code
+	LOAD D A
+	LOAD D #sum
+	LOAD D sum
+	LOAD D #3
+	LOAD D 3

@@ -1,0 +1,39 @@
+.dec
+	//Declaring stuff
+	sum
+	x
+	//Another comment
+	y
+.code
+	loop:
+	JMP loop
+	JGT 10
+	JEQ loop
+	JGE 12
+	JLT 13
+	JNE loop
+	JLE loop
+	INC
+	DEC
+	CLR
+	NEG
+	NOT
+	
+	JMP boop
+	JMP goop
+	JMP app
+	JMP doop
+	
+	ADDD dud
+	ANDD smth
+	ADDD creola
+		
+	ADDD 13
+	ADDD #13
+	ADDD sum
+	ADDD #sum
+	ANDD #sum
+	ORD #x
+	SUBD 13
+	STO A 256
+	STO D sum
