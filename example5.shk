@@ -1,0 +1,96 @@
+.dec
+    sum
+    sum
+    x
+    y;
+    z.
+    12d
+    d12
+    JEQ
+.code
+    ANDD:
+    sum:
+    loop:
+    loop:
+    loop:
+    sum:
+
+    //Ignore me
+    //Yes I am a comment
+    //1239-=[=428*-*--*//
+
+    ADDD #13
+    ADDD 13
+    ADDD sum
+    ADDD #sum
+    ADDD -sum
+    ADDD: 13
+    ADDD dif
+    ADDD sum;
+    ADDD 13;
+
+    ANDD dif
+    ANDD m
+    ANDD y
+    ANDD d12
+
+    ORD #x
+    ORD x
+
+    SUBD 0
+    SUBD 2
+
+    INC
+    INC;
+    INC 3
+    DEC
+    CLR
+    NEG
+    NOT
+    NOT x
+
+    STO A 200
+    STO A x
+    STO A #x
+    STO D sum
+    STO D sum x
+    STO d
+    STO hello D
+    STO
+    STO D A
+    STO D A;
+    LOAD D A
+    LOAD A D
+    LOAD A #x
+    LOAD A 200
+    LOAD A 30000000
+
+    LOAD D 3something
+    LOAD D #sum
+    LOAD D sum
+
+    JMP
+    JMP 40;
+    JMP 40
+    JGT INC
+    JGT sum
+    JEQ loop
+    JGE #loop
+    JGE #123
+    JLT hello
+    JNE hi
+    JLE stuff
+    JLE abc
+    JLE bca
+    JMP cab
+
+    hello:
+    hello:
+    hi?:
+    ][][:
+    !
+    ;
+    loop:;
+
+    Addd 3
+    AND 4
