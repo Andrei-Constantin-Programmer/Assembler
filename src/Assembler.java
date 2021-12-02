@@ -236,7 +236,7 @@ public class Assembler
             }
             else
             {
-                write("(" + instruction+")");
+                write("@" + instruction);
             }
         }
         else //Do instructions
@@ -261,7 +261,7 @@ public class Assembler
                     labels.add(instruction);
                 }else //Otherwise, convert it
                 {
-                    write("(" + instruction+")");
+                    write("(" + instruction + ")");
                 }
             }
             else //Do actual instruction
