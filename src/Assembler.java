@@ -16,7 +16,9 @@ import java.util.*;
  */
 public class Assembler
 {
-    private static ArrayList<String> instructionCodes;
+    private static HashMap<String, Convertor> conversionMapping;
+
+    //private static ArrayList<String> instructionCodes;
     private static HashMap<String, String> noOperandInstructionMapping;
     private static HashMap<String, String> dRegisterInstructionMapping;
     private FileWriter writer;
@@ -33,7 +35,6 @@ public class Assembler
     public static void main(String[] args)
     {
         String file = args[0];
-        //ArrayList<String> instructions = new ArrayList<>();
         //Test if a file has been given and if it has the appropriate suffix.
         if(file!=null && !file.isEmpty() && file.endsWith(".shk"))
         {
@@ -104,31 +105,38 @@ public class Assembler
             put("NEG", "D=-D");
             put("NOT", "D=!D");
         }};
+
         dRegisterInstructionMapping = new HashMap<>(){{
             put("ADDD", "+");
             put("ANDD", "&");
             put("ORD", "|");
             put("SUBD", "-");
         }};
-        instructionCodes = new ArrayList<>(){{
-            add("ADDD");
-            add("ANDD");
-            add("ORD");
-            add("SUBD");
-            add("INC");
-            add("DEC");
-            add("CLR");
-            add("NEG");
-            add("NOT");
-            add("STO");
-            add("LOAD");
-            add("JMP");
-            add("JGT");
-            add("JEQ");
-            add("JGE");
-            add("JLT");
-            add("JNE");
-            add("JLE");
+
+        //Create the conversion mapping
+        conversionMapping = new HashMap<>()
+        {{
+            put("ADDD", (line)->writeDRegister(line));
+            put("ANDD", (line)->writeDRegister(line));
+            put("ORD", (line)->writeDRegister(line));
+            put("SUBD", (line)->writeDRegister(line));
+
+            put("INC", (line)->writeNoOperand(line));
+            put("DEC", (line)->writeNoOperand(line));
+            put("CLR", (line)->writeNoOperand(line));
+            put("NEG", (line)->writeNoOperand(line));
+            put("NOT", (line)->writeNoOperand(line));
+
+            put("STO", (line)->writeStore(line));
+            put("LOAD", (line)->writeLoad(line));
+
+            put("JMP", (line)->writeJump(line));
+            put("JGT", (line)->writeJump(line));
+            put("JEQ", (line)->writeJump(line));
+            put("JGE", (line)->writeJump(line));
+            put("JLT", (line)->writeJump(line));
+            put("JNE", (line)->writeJump(line));
+            put("JLE", (line)->writeJump(line));
         }};
     }
 
@@ -138,7 +146,7 @@ public class Assembler
      */
     private void checkLabelIsNotInstruction(String label)
     {
-        if(instructionCodes.contains(label))
+        if(conversionMapping.containsKey(label))
             throw new InstructionAsLabelException(label);
     }
 
@@ -234,10 +242,10 @@ public class Assembler
                     goodInstructions.add(instruction);
                 variables.add(instruction);
             }
-            else
+            /*else
             {
                 write("@" + instruction);
-            }
+            }*/
         }
         else //Do instructions
         {
@@ -325,24 +333,10 @@ public class Assembler
         char c = findInvalidChar(parts[0], false);
         if(c!=' ')
             throw new IllegalCharacterException(c);
-        //Select the instruction to be done
-        switch (parts[0]) {
-            //D-register instructions
-            case "ADDD", "ANDD", "ORD", "SUBD" -> writeDRegister(line);
 
-            //No operand instructions
-            case "INC", "DEC", "CLR", "NEG", "NOT" -> writeNoOperand(line);
-
-            //Jump instructions
-            case "JMP", "JGT", "JEQ", "JGE", "JLT", "JNE", "JLE" -> writeJump(line);
-
-            //Store instruction
-            case "STO" -> writeStore(line);
-
-            //Load instruction
-            case "LOAD" -> writeLoad(line);
-            default -> throw new IllegalInstructionException(line);
-        }
+        if(!conversionMapping.containsKey(parts[0]))
+            throw new IllegalInstructionException(line);
+        conversionMapping.get(parts[0]).write(line);
     }
 
     /**
@@ -698,4 +692,9 @@ public class Assembler
     }
 
     //endregion
+
+    private interface Convertor
+    {
+        public void write(String line);
+    }
 }
